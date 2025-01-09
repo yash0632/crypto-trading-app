@@ -1,6 +1,19 @@
-import {Router} from 'express';
+import {Router,Request,Response} from 'express';
 import OrderController from '../controllers/orderControllers';
 
-export const orderRouter = Router();
+const orderRouter = Router();
 
-orderRouter.post("/",OrderController.createOrder);
+orderRouter.post("/",(req:Request,res:Response) =>{
+    OrderController.createOrder(req,res)
+});
+
+orderRouter.delete("/",(req:Request,res:Response)=>{
+    OrderController.deleteOrder(req,res)
+
+})
+
+orderRouter.get("/open",(req:Request,res:Response) => {
+    OrderController.getOrders(req,res)
+})
+
+export default orderRouter;
