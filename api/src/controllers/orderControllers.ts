@@ -10,9 +10,9 @@ class OrderController{
         })
     }
 
-    async deleteOrder(req:Request,res:Response){
+    async cancelOrder(req:Request,res:Response){
         const {market,orderId} = req.body;
-        const response = await OrderService.deleteOrder({market,orderId});
+        const response = await OrderService.cancelOrder({market,orderId});
         return res.status(200).json({
             "message":"deleted successfully"
         });

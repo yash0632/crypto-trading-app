@@ -17,10 +17,10 @@ class OrderService {
     return response;
   }
 
-  async deleteOrder(data: any) {
+  async cancelOrder(data: any) {
     const { market, orderId } = data;
     const response = await RedisManager.getInstance().sendAndAwait({
-      type: "DELETE_ORDER",
+      type: "CANCEL_ORDER",
       data: {
         market,
         orderId,

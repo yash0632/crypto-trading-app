@@ -9,6 +9,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@types/redis": "^4.0.11",
     "bullmq": "^5.34.8",
     "redis": "^4.7.0"
   }

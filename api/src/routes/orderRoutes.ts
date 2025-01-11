@@ -8,7 +8,7 @@ orderRouter.post("/",(req:Request,res:Response) =>{
 });
 
 orderRouter.delete("/",(req:Request,res:Response)=>{
-    OrderController.deleteOrder(req,res)
+    OrderController.cancelOrder(req,res)
 
 })
 
