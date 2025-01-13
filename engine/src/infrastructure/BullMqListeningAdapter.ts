@@ -1,19 +1,20 @@
 import {  Worker,Job } from "bullmq";
 import { IEngine } from "../trade/Engine";
 
-export interface IBullMqAdapter{
+export interface IBullMqListeningAdapter{
     setupEventConnections():void
     processJobs(job:Job):Promise<void>
 }
 
-interface RedisConfig{
+export interface RedisConfig{
     host:string,
     port:number
 }
 
-export class BullMqAdapter implements IBullMqAdapter{
+export class BullMqListeningAdapter implements IBullMqListeningAdapter{
     private worker : Worker;
-    private readonly engine : IEngine
+    private engine : IEngine
+    
 
     constructor(queueName:string,redisConfig:RedisConfig,engine:IEngine){
         this.engine = engine;

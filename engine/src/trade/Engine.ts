@@ -1,11 +1,14 @@
 import { isThisTypeNode } from "typescript";
 import {IRedisManager} from "../infrastructure/RedisManager"
 import { MessageFromApi , CREATE_ORDER , CANCEL_ORDER, ON_RAMP, GET_DEPTH, GET_OPEN_ORDERS} from "../types/fromApi";
-import {IFill, OrderBook} from './OrderBook'
-import { file } from "bun";
+import {IFill, OrderBook,IOrder} from './OrderBook'
+
+import { ORDER_UPDATE, TRADE_ADDED } from "../types/index";
+import { IBullMqSendingAdapter } from "../infrastructure/BullMqSendingAdapter";
 
 export interface IEngine{
     process(data:any):Promise<void>
+    
 }
 
 interface IUserBalance {
@@ -19,9 +22,11 @@ class Engine implements IEngine{
     private redisManager : IRedisManager
     private orderBooks : OrderBook[] = [];
     private balances : Map<string,IUserBalance> = new Map();
+    private messageQueue : IBullMqSendingAdapter
     
-    constructor(redisManager:IRedisManager){
+    constructor(redisManager:IRedisManager,messageQueue:IBullMqSendingAdapter){
         this.redisManager = redisManager;
+        this.messageQueue = messageQueue;
         
     }
 
@@ -92,7 +97,8 @@ class Engine implements IEngine{
 
         const {fills,executedQty} = orderBook.addOrder(order);
         this.updateBalance(fills,userId,side,quoteAsset,baseAsset);
-        
+        this.createDbTrades(fills,market,userId);
+        this.updateDbTrades(fills,market,order,executedQty)
 
     }
 
@@ -190,6 +196,47 @@ class Engine implements IEngine{
            
             
         }
+    }
+
+    createDbTrades(fills:IFill[],market:string,userId:string){
+        fills.forEach((fill)=>{
+            this.redisManager.pushMessage(fill.otherUserId,{
+                type:TRADE_ADDED,
+                data:{
+                    market:market,
+                    price:fill.price,
+                    quantity:fill.quantity.toString(),
+                    QuoteQuantity : (Number(fill.price) * fill.quantity).toString(),
+                    isBuyerMaker:fill.otherUserId == userId,
+                    tradeId:fill.tradeId.toString(),
+                    timeStamp:new Date()
+                }
+
+            })
+        })
+    }
+
+    updateDbTrades(fills:IFill[],market:string,order:IOrder,executedQty:number){
+        this.messageQueue.pushMessage({
+            type:ORDER_UPDATE,
+            data:{
+                orderId:order.orderId,
+                price:order.price,
+                quantity:order.quantity,
+                executedQty:executedQty,
+                market:market,
+                side:order.side
+            }
+        })
+        fills.forEach((fill)=>{
+            this.messageQueue.pushMessage({
+                type:ORDER_UPDATE,
+                data:{
+                    orderId:fill.marketOrderId,
+                    executedQty:fill.quantity,
+                }
+            })
+        })
     }
 }
 
