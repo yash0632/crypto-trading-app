@@ -12,8 +12,8 @@ export interface IFill{
     price:string,
     quantity:number,
     tradeId:number,
-    marketOrderId:number,
-    otherUserId:number
+    marketOrderId:string,
+    otherUserId:string
 }
 
 export class OrderBook{
@@ -85,8 +85,8 @@ export class OrderBook{
                     price:this.asks[i].price.toString(),
                     quantity:filledQty,
                     tradeId:++this.lastTradeId,
-                    otherUserId:Number(this.asks[i].userId),
-                    marketOrderId:Number(this.asks[i].orderId)
+                    otherUserId:this.asks[i].userId,
+                    marketOrderId:this.asks[i].orderId
                 })
             }
         }
@@ -117,8 +117,8 @@ export class OrderBook{
                     price:this.bids[i].price.toString(),
                     quantity:selledAmount,
                     tradeId:++this.lastTradeId,
-                    otherUserId:Number(this.bids[i].userId),
-                    marketOrderId:Number(this.bids[i].orderId)
+                    otherUserId:this.bids[i].userId,
+                    marketOrderId:this.bids[i].orderId
                 })
             }   
         }

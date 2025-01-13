@@ -1,7 +1,8 @@
 import { isThisTypeNode } from "typescript";
 import {IRedisManager} from "../infrastructure/RedisManager"
 import { MessageFromApi , CREATE_ORDER , CANCEL_ORDER, ON_RAMP, GET_DEPTH, GET_OPEN_ORDERS} from "../types/fromApi";
-import {OrderBook} from './OrderBook'
+import {IFill, OrderBook} from './OrderBook'
+import { file } from "bun";
 
 export interface IEngine{
     process(data:any):Promise<void>
@@ -90,7 +91,9 @@ class Engine implements IEngine{
         }
 
         const {fills,executedQty} = orderBook.addOrder(order);
+        this.updateBalance(fills,userId,side,quoteAsset,baseAsset);
         
+
     }
 
     cancelOrder(
@@ -142,6 +145,50 @@ class Engine implements IEngine{
             //1 user has solana and inr which are locked ond available
             //@ts-ignore
             this.balances.get(userId)[baseAsset].locked = this.balances.get(userId)[baseAsset].locked + Number(quantity);
+        }
+    }
+
+
+    updateBalance(fills:IFill[],userId:string,side:"buy"|"sell",quoteAsset:string,baseAsset:string){
+        if(side == "buy"){
+            
+            
+            fills.forEach(fill=>{
+               
+                //@ts-ignore
+                this.balances.get(fill.otherUserId)[quoteAsset].available = this.balances.get(fill.otherUserId)[quoteAsset].available + (Number(price) * quantity);
+                
+                //@ts-ignore
+                this.balances.get(fill.otherUserId)[baseAsset].locked = this.balances.get(fill.otherUserId)[baseAsset].locked - quantity;
+
+                
+                //@ts-ignore
+                this.balances.get(userId)[baseAsset].available = this.balances.get(userId)[baseAsset].available + fill.quantity;
+
+                //@ts-ignore
+                this.balances.get(userId)[quoteAsset].locked = this.balances.get(userId)[quoteAsset].locked - (Number(fill.price) * fill.quantity);
+
+            })
+        }
+        else{
+            fills.forEach((fill)=>{
+                
+                //@ts-ignore
+                this.balances.get(fill.otherUserId)[baseAsset].locked = this.balances.get(fill.otherUserId)[baseAsset].locked - (Number(fill.price) * quantity);
+
+                //@ts-ignore
+                this.balances.get(fill.otherUserId)[quoteAsset].available = this.balances.get(fill.otherUserId)[quoteAsset].available + quantity;
+
+                
+
+                //@ts-ignore
+                this.balances.get(userId)[baseAsset].locked = this.balances.get(userId)[baseAsset] - fill.quantity;
+
+                //@ts-ignore
+                this.balances.get(userId)[quoteAsset].available = this.balances.get(userId)[quoteAsset] + (Number(fill.price) * fill.quantity);
+            })
+           
+            
         }
     }
 }
