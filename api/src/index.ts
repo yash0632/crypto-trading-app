@@ -1,6 +1,7 @@
 import express, { Application } from "express";
 import cors from "cors";
 import orderRouter from "./routes/orderRoutes";
+import depthRouter from "./routes/depthRoutes";
 import { RedisManager } from "./infrastructure/redis/redisManager";
 import { BullMqAdapter } from "./infrastructure/queue/BullMqAdapter";
 
@@ -24,6 +25,8 @@ async function startServer() {
     await RedisManager.initialize(queueAdapter);
 
     app.use("/api/v1/order", orderRouter);
+    app.use("/api/v1/depth",depthRouter);
+    app.use("/api/v1/trades",tradeRouter);
 
     app.listen(3000, () => {
       console.log(`Server is running on port 3000`);
