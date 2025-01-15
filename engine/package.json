@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@types/redis": "^4.0.11",
+    "axios": "^1.7.9",
     "bullmq": "^5.34.8",
     "redis": "^4.7.0"
   }

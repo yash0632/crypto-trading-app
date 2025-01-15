@@ -1,3 +1,7 @@
+import axios from "axios";
+
+const BASE_URL = "https://exchange-proxy.100xdevs.com/api/v1";
+
 export const BASE_CURRENCY = "INR"
 export interface IOrder{
     side:"buy"|"sell",
@@ -78,7 +82,7 @@ export class OrderBook{
         let {price,quantity} = order;
         for(let i = 0;i < this.asks.length;i++){
             if(this.asks[i].price <= price && executedQty < quantity){
-                const filledQty = Math.min(quantity-executedQty,this.asks[i].quantity);
+                const filledQty = Math.min(quantity-executedQty,this.asks[i].quantity - this.asks[i].filled);
                 executedQty += filledQty;
                 this.asks[i].filled += filledQty;
                 fills.push({
@@ -95,6 +99,7 @@ export class OrderBook{
             this.asks.splice(0,1);
         }
         
+        
 
         return {
             fills,
@@ -110,7 +115,7 @@ export class OrderBook{
 
         for(let i = this.bids.length - 1;i >= 0;i--){
             if(this.bids[i].price >= order.price && executedQty < order.quantity){
-                const selledAmount = Math.min(order.quantity - executedQty,this.bids[i].quantity);
+                const selledAmount = Math.min(order.quantity - executedQty,this.bids[i].quantity - this.bids[i].filled);
                 executedQty += selledAmount;
                 this.bids[i].filled += selledAmount;
                 fills.push({
@@ -132,6 +137,44 @@ export class OrderBook{
         return {
             fills,
             executedQty
+        }
+    }
+
+
+    getDepth(){
+        const bids :[string,string][] = [];
+        const asks :[string,string][] = [];
+
+        //this.bids ->[price,quantity,filled]
+        const bidsObj :{[key:string]:number} = {}
+        const asksObj :{[key:string]:number} = {}
+
+        this.asks.forEach(ask=>{
+            if(!asksObj[ask.price]){
+                asksObj[ask.price] = 0;
+            }
+            asksObj[ask.price] += (ask.quantity - ask.filled);
+        })
+
+        this.bids.forEach(bid=>{
+            if(!bidsObj[bid.price]){
+                bidsObj[bid.price] = 0;
+            }
+            bidsObj[bid.price] += (bid.quantity - bid.filled);
+        })
+
+
+        Object.keys(asksObj).forEach((price)=>{
+            asks.push([price,asksObj[price].toString()])
+        })
+
+        Object.keys(bidsObj).forEach((price)=>{
+            bids.push([price,bidsObj[price].toString()]);
+        })
+
+        return {
+            asks:asks,
+            bids:bids
         }
     }
 }

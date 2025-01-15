@@ -5,7 +5,7 @@ export interface IRedisManager{
     messagePubSub : RedisClientType
     connect():Promise<void>;
     sendToApi(clientId:string,message:any):void
-    pushMessage(channelId:string,message:any):void
+    publishMessage(channel:string,message:any):void
 }
 
 export class RedisManager implements IRedisManager{
@@ -23,8 +23,10 @@ export class RedisManager implements IRedisManager{
         this.messagePubSub.publish(clientId,JSON.stringify(message))
     }
 
-    public pushMessage(channelId:string,message:any){
-        this.messagePubSub.publish(channelId,JSON.stringify(message));
+    public publishMessage(channel:string,message:any){
+        this.messagePubSub.publish(channel,JSON.stringify(message));
     }
+
+    
 
 }

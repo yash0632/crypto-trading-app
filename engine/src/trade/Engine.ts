@@ -1,4 +1,4 @@
-import { isThisTypeNode } from "typescript";
+
 import {IRedisManager} from "../infrastructure/RedisManager"
 import { MessageFromApi , CREATE_ORDER , CANCEL_ORDER, ON_RAMP, GET_DEPTH, GET_OPEN_ORDERS} from "../types/fromApi";
 import {IFill, OrderBook,IOrder} from './OrderBook'
@@ -19,13 +19,13 @@ interface IUserBalance {
 }
 class Engine implements IEngine{
     
-    private redisManager : IRedisManager
+    private messagePubSub : IRedisManager
     private orderBooks : OrderBook[] = [];
     private balances : Map<string,IUserBalance> = new Map();
     private messageQueue : IBullMqSendingAdapter
     
-    constructor(redisManager:IRedisManager,messageQueue:IBullMqSendingAdapter){
-        this.redisManager = redisManager;
+    constructor(messagePubSub:IRedisManager,messageQueue:IBullMqSendingAdapter){
+        this.messagePubSub = messagePubSub;
         this.messageQueue = messageQueue;
         
     }
@@ -35,14 +35,14 @@ class Engine implements IEngine{
             case CREATE_ORDER:
                 try{
                     const {executedQty,fills,orderId} =  this.createOrder(message.data.market,message.data.price,message.data.quantity,message.data.side,message.data.userId)
-                    this.redisManager.sendToApi(clientId,{
+                    this.messagePubSub.sendToApi(clientId,{
                         executedQty,
                         fills,
                         orderId
                     })
                 } catch(e){
                     console.log(e);
-                    this.redisManager.sendToApi(clientId,{
+                    this.messagePubSub.sendToApi(clientId,{
                         orderId:"",
                         executedQty:"0",
                         fills:[]
@@ -99,6 +99,7 @@ class Engine implements IEngine{
         this.updateBalance(fills,userId,side,quoteAsset,baseAsset);
         this.createDbTrades(fills,market,userId);
         this.updateDbTrades(fills,market,order,executedQty)
+        //send ws depth updates
 
     }
 
@@ -200,7 +201,7 @@ class Engine implements IEngine{
 
     createDbTrades(fills:IFill[],market:string,userId:string){
         fills.forEach((fill)=>{
-            this.redisManager.pushMessage(fill.otherUserId,{
+            this.messageQueue.pushMessage({
                 type:TRADE_ADDED,
                 data:{
                     market:market,
@@ -237,6 +238,64 @@ class Engine implements IEngine{
                 }
             })
         })
+    }
+
+    publishWsDepthUpdates(side:"buy"|"sell",market:string,fills:IFill[],price:string){
+        const orderBook = this.orderBooks.find(orderBook=>orderBook.ticker() === market);
+        if(!orderBook)return;
+
+        const depth = orderBook.getDepth();
+        if(side == "buy"){
+            const updatedBid = depth.bids.filter((bid)=>{
+                return bid[0] == price;
+            })
+            
+
+            const updatedAsks = fills.map(fill=>{
+                const newAsk = depth.asks.find((ask)=>ask[0] == fill.price);
+                if(!newAsk){
+                    return [fill.price,"0"];
+                }
+                else{
+                    return [fill.price,newAsk[1]];
+                }
+            })
+
+            this.messagePubSub.publishMessage(`depth.200ms.${market}`,{
+                stream:`depth.200ms.${market}`,
+                data:{
+                    a:updatedAsks,
+                    b:updatedBid,
+                    e:"depth",
+                    s:`${market}`
+                }
+            })
+
+
+        }
+        else{
+            const updatedAsk = depth.asks.filter((ask)=>ask[0] == price);
+            const updatedBids = fills.map((fill)=>{
+                const newBid = depth.bids.find((bid)=>bid[0] == fill.price);
+                if(!newBid){
+                    return [fill.price,"0"];
+                }
+                else{
+                    return [fill.price,newBid[1]];
+                }
+            })
+
+            this.messagePubSub.publishMessage(`depth.200ms.${market}`,{
+                stream:`depth.200ms.${market}`,
+                data:{
+                    a:updatedAsk,
+                    b:updatedBids,
+                    e:"depth",
+                    s:`${market}`
+                }
+            })
+
+        }
     }
 }
 

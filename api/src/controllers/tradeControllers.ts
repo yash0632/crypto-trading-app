@@ -14,3 +14,5 @@ class TradeControllersClass{
 }
 
 const TradeControllers = new TradeControllersClass();
+
+export default TradeControllers;
