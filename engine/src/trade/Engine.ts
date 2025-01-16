@@ -100,6 +100,8 @@ class Engine implements IEngine{
         this.createDbTrades(fills,market,userId);
         this.updateDbTrades(fills,market,order,executedQty)
         //send ws depth updates
+        this.publishWsDepthUpdates(side,market,fills,price);
+        this.publishWsTrades(fills,market);
 
     }
 
@@ -296,6 +298,19 @@ class Engine implements IEngine{
             })
 
         }
+    }
+
+    publishWsTrades(fills:IFill[],market:string){
+        fills.forEach((fill)=>{
+            this.messagePubSub.publishMessage(`trade@${market}`,{
+                stream:`trade.${market}`,
+                data:{
+                    p:fill.price,
+                    q:fill.quantity.toString()
+                    e:`trade`
+                }
+            })
+        })
     }
 }
 
