@@ -52,6 +52,7 @@ export class OrderBook{
                 }
             }
             order.filled = executedQty;
+            this.bids.push(order);
             return {
                 executedQty,
                 fills
@@ -176,5 +177,27 @@ export class OrderBook{
             asks:asks,
             bids:bids
         }
+    }
+
+    getOrderById(orderId:string):IOrder|null{
+        const order = this.asks.find(order => order.orderId == orderId) || this.bids.find(order=>order.orderId == orderId);
+        return order || null;
+    }
+
+    cancelOrder(orderId:string){
+        const order = this.asks.find(order => order.orderId == orderId) || this.bids.find(order=>order.orderId == orderId);
+        if(!order){
+            return;
+        }
+        
+        if(order.side == "buy"){
+            this.bids.splice(this.bids.indexOf(order),1);
+        }
+        else{
+            this.asks.splice(this.asks.indexOf(order),1);
+        }
+
+        
+
     }
 }

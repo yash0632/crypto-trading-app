@@ -98,10 +98,15 @@ class Engine implements IEngine{
         const {fills,executedQty} = orderBook.addOrder(order);
         this.updateBalance(fills,userId,side,quoteAsset,baseAsset);
         this.createDbTrades(fills,market,userId);
-        this.updateDbTrades(fills,market,order,executedQty)
+        this.updateDbOrders(fills,market,order,executedQty)
         //send ws depth updates
         this.publishWsDepthUpdates(side,market,fills,price);
         this.publishWsTrades(fills,market);
+        return {
+            executedQty,
+            fills,
+            orderId:order.orderId
+        }
 
     }
 
@@ -109,6 +114,29 @@ class Engine implements IEngine{
         orderId:string,
         market:string
     ){
+        //cancel order -> locked decrease and available increase -> order delete
+        //ws new updates frontend
+        //api -> msg -> cancelled order -> expected,filled
+        // db -> msg -> order cancelled
+        const orderBook = this.orderBooks.find(orderBook => orderBook.ticker() == market);
+        if(!orderBook){
+            throw new Error("No order book found for " + market);
+        }
+
+        const order = orderBook.getOrderById(orderId);
+        if(order == null){
+            throw new Error("Order not found");
+        }
+        else{
+            orderBook.cancelOrder(orderId); 
+        }
+        //updated Balances on canceling order
+        this.updateBalanceOnCancel(order.side,order.userId,market.split("_")[0],market.split("_")[1],(order.quantity).toString(),(order.price).toString(),order.filled.toString());
+
+        //remove user ask bids updates
+        this.removeWsDepthUpdates(order.side,market,order.price.toString(),order.quantity.toString(),order.filled.toString());
+
+        //update OrderBook
 
     }
     
@@ -219,7 +247,7 @@ class Engine implements IEngine{
         })
     }
 
-    updateDbTrades(fills:IFill[],market:string,order:IOrder,executedQty:number){
+    updateDbOrders(fills:IFill[],market:string,order:IOrder,executedQty:number){
         this.messageQueue.pushMessage({
             type:ORDER_UPDATE,
             data:{
@@ -306,11 +334,102 @@ class Engine implements IEngine{
                 stream:`trade.${market}`,
                 data:{
                     p:fill.price,
-                    q:fill.quantity.toString()
+                    q:fill.quantity.toString(),
                     e:`trade`
                 }
             })
         })
+    }
+
+    updateBalanceOnCancel(side:string,userId:string,quoteAsset:string,baseAsset:string,quantity:string,price:string,filled:string){
+       
+        if(side == "buy"){
+            
+            
+
+            const leftBuyOrderValue = (parseFloat(quantity) - parseFloat(filled)) * parseFloat(price);
+
+            const userBalance = this.balances.get(userId);
+            if(!userBalance){
+                console.log(`user id is not present in cancelBalanceOnUpdate`);
+                return;
+            }
+            if(!userBalance[quoteAsset]){
+                console.log(`quoteAsset is not present in cancelBalanceOnUpdate`);
+                return;
+            }
+
+            userBalance[quoteAsset].available += leftBuyOrderValue;
+            
+            userBalance[quoteAsset].locked -= leftBuyOrderValue;
+            
+        }else{
+            
+            const leftSellOrderValue = parseFloat(quantity) - parseFloat(filled);
+            
+            const userBalance = this.balances.get(userId);
+            if(!userBalance){
+                console.log('UserId is not present in updateBalanceOnCancel');
+                return;
+            }
+
+            if(!userBalance[baseAsset]){
+                console.log('Base Asset not fond in user balance');
+                return;
+            }
+            
+            userBalance[baseAsset].locked -= leftSellOrderValue;
+
+            userBalance[baseAsset].available += leftSellOrderValue;
+        }
+    }
+
+    removeWsDepthUpdates(side:string,market:string,price:string,quantity:string,filled:string){
+        const orderBook = this.orderBooks.find(orderBook => orderBook.ticker() == market);
+        if(!orderBook){
+            console.log("Orderbook not found!")
+            return;
+        }
+
+        const depth = orderBook.getDepth();
+        if(side == "buy"){
+            //updatedBidsChange -> get original bids
+            //check for price
+            const filteredBid = depth.bids.find((bid)=>bid[0] == price);
+            if(!filteredBid){
+                return;
+            }
+
+            const updatedBid = [filteredBid[0],parseFloat(filteredBid[1]) - (parseFloat(quantity) - parseFloat(filled))];
+
+            this.messagePubSub.publishMessage(`depth.200ms.${market}`,{
+                stream:`depth.200ms.${market}`,
+                data:{
+                    a:[],
+                    b:[updatedBid],
+                    e:"depth",
+                    s:market
+                }
+            })
+        }
+        else{
+            const filteredAsk = depth.asks.find((ask)=>ask[0] == price);
+            if(!filteredAsk){
+                return;
+            }
+            const updatedAsk = [filteredAsk[0],parseFloat(filteredAsk[1]) - (parseFloat(quantity) - parseFloat(filled))];
+
+            this.messagePubSub.publishMessage(`depth.200ms.${market}`,{
+                stream:`depth.200ms.${market}`,
+                data:{
+                    a:[updatedAsk],
+                    b:[],
+                    e:"depth",
+                    s:market
+                }
+            })
+            }
+        }
     }
 }
 
